@@ -1,0 +1,13 @@
+**/.git
+**/.vs
+**/.idea
+**/bin
+**/obj
+**/TestResults
+**/node_modules
+**/*.user
+**/*.suo
+**/.cursor
+**/Tests
+**/*.md
+docker-compose*.yml

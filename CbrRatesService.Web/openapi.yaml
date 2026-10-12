@@ -1,0 +1,175 @@
+openapi: 3.0.3
+info:
+  title: Cbr Rates Service API
+  version: 1.0.0
+  description: |
+    Внутренний API курсов валют Центрального банка РФ (ЦБ РФ).
+    Курсы загружаются с сайта ЦБ и при необходимости кэшируются.
+servers:
+  - url: /
+    description: Текущий хост
+tags:
+  - name: Rates
+    description: Курсы валют
+
+paths:
+  /api/v1/rates:
+    get:
+      tags:
+        - Rates
+      operationId: getRates
+      summary: Получить курсы валют
+      description: |
+        Возвращает курсы валют ЦБ РФ на указанную дату (или на сегодня, если дата не задана).
+        Если передан `currency` и код не найден — ответ 204 No Content.
+      parameters:
+        - name: date
+          in: query
+          required: false
+          description: |
+            Дата курса. Форматы: `yyyy-MM-dd`, `dd.MM.yyyy`.
+            Если не указана — используется текущая дата.
+          schema:
+            type: string
+            example: "2026-10-11"
+        - name: currency
+          in: query
+          required: false
+          description: |
+            Буквенный код валюты ISO (например, USD, EUR). Без учёта регистра.
+            Если не указан — возвращаются все валюты.
+          schema:
+            type: string
+            minLength: 3
+            maxLength: 3
+            example: USD
+      responses:
+        "200":
+          description: Курсы успешно получены.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RatesResponse"
+              examples:
+                allCurrencies:
+                  summary: Все валюты на дату
+                  value:
+                    date: "2026-10-11"
+                    currencies:
+                      - charCode: USD
+                        numCode: "840"
+                        nominal: 1
+                        name: Доллар США
+                        value: "90,1234"
+                        vunitRate: "90,1234"
+                      - charCode: EUR
+                        numCode: "978"
+                        nominal: 1
+                        name: Евро
+                        value: "98,7654"
+                        vunitRate: "98,7654"
+                singleCurrency:
+                  summary: Одна валюта по фильтру
+                  value:
+                    date: "2026-10-11"
+                    currencies:
+                      - charCode: USD
+                        numCode: "840"
+                        nominal: 1
+                        name: Доллар США
+                        value: "90,1234"
+                        vunitRate: "90,1234"
+        "204":
+          description: |
+            Запрошенная валюта не найдена на указанную дату
+            либо курсы на дату недоступны.
+        "400":
+          description: Некорректный параметр `date`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+              example:
+                type: https://tools.ietf.org/html/rfc9110#section-15.5.1
+                title: Bad Request
+                status: 400
+                detail: Некорректный формат даты. Используйте yyyy-MM-dd или dd.MM.yyyy.
+                instance: /api/v1/rates
+
+components:
+  schemas:
+    RatesResponse:
+      type: object
+      required:
+        - date
+        - currencies
+      properties:
+        date:
+          type: string
+          format: date
+          description: Дата курса в формате ISO-8601 (`yyyy-MM-dd`).
+          example: "2026-10-11"
+        currencies:
+          type: array
+          description: Список курсов (все валюты или одна после фильтрации).
+          items:
+            $ref: "#/components/schemas/CurrencyResponse"
+
+    CurrencyResponse:
+      type: object
+      required:
+        - charCode
+        - numCode
+        - nominal
+        - name
+        - value
+        - vunitRate
+      properties:
+        charCode:
+          type: string
+          description: Буквенный код валюты (ISO 4217).
+          example: USD
+        numCode:
+          type: string
+          description: Цифровой код валюты (ISO 4217).
+          example: "840"
+        nominal:
+          type: integer
+          format: int32
+          description: Номинал (число единиц валюты, к которому относится курс).
+          example: 1
+        name:
+          type: string
+          description: Наименование валюты.
+          example: Доллар США
+        value:
+          type: string
+          description: Значение курса от ЦБ РФ (десятичный разделитель — запятая).
+          example: "90,1234"
+        vunitRate:
+          type: string
+          description: Курс за единицу (`value / nominal`) по данным ЦБ РФ.
+          example: "90,1234"
+
+    ProblemDetails:
+      type: object
+      description: Стандартное описание ошибки (RFC 7807).
+      properties:
+        type:
+          type: string
+          format: uri
+          description: URI типа ошибки.
+        title:
+          type: string
+          description: Краткий заголовок ошибки.
+        status:
+          type: integer
+          format: int32
+          description: HTTP-статус.
+        detail:
+          type: string
+          description: Подробности ошибки.
+        instance:
+          type: string
+          format: uri
+          description: URI экземпляра запроса.

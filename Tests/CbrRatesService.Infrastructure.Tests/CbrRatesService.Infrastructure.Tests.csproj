@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+
+        <IsPackable>false</IsPackable>
+        <IsTestProject>true</IsTestProject>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="coverlet.collector" Version="6.0.0"/>
+        <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="10.0.12"/>
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12"/>
+        <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.12"/>
+        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0"/>
+        <PackageReference Include="Moq" Version="4.21.0"/>
+        <PackageReference Include="xunit" Version="2.5.3"/>
+        <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Using Include="Xunit"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\CbrRatesService.Infrastructure.Cbr\CbrRatesService.Infrastructure.Cbr.csproj"/>
+        <ProjectReference Include="..\..\CbrRatesService.Infrastructure.MemoryCache\CbrRatesService.Infrastructure.MemoryCache.csproj"/>
+        <ProjectReference Include="..\..\CbrRatesService.Infrastructure.Redis\CbrRatesService.Infrastructure.Redis.csproj"/>
+        <ProjectReference Include="..\CbrRatesService.Mocks\CbrRatesService.Mocks.csproj"/>
+    </ItemGroup>
+
+</Project>

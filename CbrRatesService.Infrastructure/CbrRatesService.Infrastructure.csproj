@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\CbrRatesService.Infrastructure.Abstractions\CbrRatesService.Infrastructure.Abstractions.csproj"/>
+        <ProjectReference Include="..\CbrRatesService.Infrastructure.Cbr\CbrRatesService.Infrastructure.Cbr.csproj"/>
+        <ProjectReference Include="..\CbrRatesService.Infrastructure.MemoryCache\CbrRatesService.Infrastructure.MemoryCache.csproj"/>
+        <ProjectReference Include="..\CbrRatesService.Infrastructure.Redis\CbrRatesService.Infrastructure.Redis.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.12"/>
+        <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.12"/>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12"/>
+    </ItemGroup>
+
+</Project>
