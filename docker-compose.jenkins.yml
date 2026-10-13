@@ -1,32 +1,36 @@
-# Local Jenkins (Linux container) on Win11 Docker Desktop with Docker-out-of-Docker.
-# App stack still uses docker-compose.yml on host port 8080 — Jenkins UI is on 8081.
+# Local Jenkins (Linux) on Win11 Docker Desktop — Docker-out-of-Docker
 #
-# Usage (from this repo root, PowerShell or bash):
+#   cd <this repo root>
 #   docker compose -f docker-compose.jenkins.yml up -d --build
-#   open http://localhost:8081
+#   UI: http://localhost:${JENKINS_HTTP_PORT:-8081}
+#   (default 8081 so app stack can keep host port 8080)
 #
-# Requires Docker Desktop → Settings → General: "Expose daemon on tcp://localhost:2375" is NOT required;
-# mounting /var/run/docker.sock is enough for Linux containers.
+# Preserve an existing jenkins_home volume (see docker volume ls):
+#   $env:JENKINS_HOME_VOLUME = "<volume-name>"
+#   docker compose -f docker-compose.jenkins.yml up -d --build
+#
+# Socket mount is enough on Docker Desktop Linux engine (no TCP 2375 needed).
 
 services:
   jenkins:
     build:
       context: .
       dockerfile: Dockerfile.jenkins
+    image: cbrrates-jenkins:local
     container_name: cbrrates-jenkins
     ports:
-      # Avoid clash with app web:8080 from docker-compose.yml
-      - "8081:8080"
-      - "50000:50000"
+      - "${JENKINS_HTTP_PORT:-8081}:8080"
+      - "${JENKINS_AGENT_PORT:-50000}:50000"
     environment:
       DOCKER_HOST: unix:///var/run/docker.sock
     volumes:
       - jenkins_home:/var/jenkins_home
-      # Docker Desktop (Linux engine): socket inside Linux VM/containers
       - /var/run/docker.sock:/var/run/docker.sock
-    # Local Dev: root can talk to the mounted sock without GID fights
+    # Local Dev: root can use the Desktop-mounted sock without GID issues
     user: root
     restart: unless-stopped
 
 volumes:
   jenkins_home:
+    # Reuse existing volume when JENKINS_HOME_VOLUME is set; else named volume
+    name: ${JENKINS_HOME_VOLUME:-cbrrates_jenkins_home}

@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1
+# Pin patch tags — floating `:8.0` can leave corrupt/empty layers on Docker Desktop (Win11).
 
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:8.0.425 AS build
 WORKDIR /src
 
 COPY global.json ./
@@ -29,7 +30,7 @@ RUN dotnet publish CbrRatesService.Web/CbrRatesService.Web.csproj \
     -o /app/publish \
     --no-restore
 
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
+FROM mcr.microsoft.com/dotnet/aspnet:8.0.22 AS final
 WORKDIR /app
 
 RUN apt-get update \
