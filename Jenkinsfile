@@ -2,8 +2,9 @@
 // Repo: https://github.com/devgopher/CbrRates
 // Flow: checkout → restore → build → test → docker compose up → smoke → optional teardown
 //
-// Dev = MSBuild Debug + ASPNETCORE_ENVIRONMENT=Development
-// Deploy: docker-compose.yml (web:8080 + redis)
+// Development = MSBuild Debug + ASPNETCORE_ENVIRONMENT=Development
+// Release = MSBuild Release + ASPNETCORE_ENVIRONMENT=Production
+// Deploy: docker-compose.yml (host 8085 → container 8080 + redis)
 // Agent: native Windows Jenkins uses bat; Linux agents use sh (isUnix()).
 
 pipeline {
@@ -18,8 +19,8 @@ pipeline {
     parameters {
         choice(
             name: 'CONFIGURATION',
-            choices: ['Dev', 'Release', 'Production'],
-            description: 'Dev = Debug + ASPNETCORE_ENVIRONMENT=Development; Release/Production = Release + Production'
+            choices: ['Development', 'Release'],
+            description: 'Development = Debug + ASPNETCORE_ENVIRONMENT=Development; Release = Release + ASPNETCORE_ENVIRONMENT=Production'
         )
         string(
             name: 'GIT_URL',
@@ -33,8 +34,8 @@ pipeline {
         )
         string(
             name: 'SMOKE_BASE_URL',
-            defaultValue: 'http://localhost:8080',
-            description: 'Smoke base URL (native Win Jenkins + Docker Desktop: http://localhost:8080)'
+            defaultValue: 'http://localhost:8085',
+            description: 'Smoke base URL (native Win Jenkins + Docker Desktop: http://localhost:8085)'
         )
         booleanParam(
             name: 'KEEP_CONTAINERS',
@@ -71,12 +72,11 @@ pipeline {
             steps {
                 script {
                     switch (params.CONFIGURATION) {
-                        case 'Dev':
+                        case 'Development':
                             env.DOTNET_CONFIGURATION = 'Debug'
                             env.ASPNETCORE_ENVIRONMENT = 'Development'
                             break
                         case 'Release':
-                        case 'Production':
                             env.DOTNET_CONFIGURATION = 'Release'
                             env.ASPNETCORE_ENVIRONMENT = 'Production'
                             break
@@ -230,7 +230,7 @@ EOF
                             docker compose -f %COMPOSE_FILE% -f %COMPOSE_OVERRIDE% build --pull --no-cache
                             docker compose -f %COMPOSE_FILE% -f %COMPOSE_OVERRIDE% up -d
                         '''
-                        // Wait for compose healthcheck + smoke on localhost:8080
+                        // Wait for compose healthcheck + smoke on localhost:8085
                         bat '''
                             powershell -NoProfile -Command "$ErrorActionPreference='Stop'; $ok=$false; for ($i=1; $i -le 40; $i++) { $lines = @(docker compose -f $env:COMPOSE_FILE -f $env:COMPOSE_OVERRIDE ps --format '{{.Service}} {{.Health}}' 2>$null) -join ' '; Write-Host ('[{0}] {1}' -f $i, $lines); if ($lines -match 'web\\s+healthy') { $ok=$true; break }; Start-Sleep -Seconds 5 }; if (-not $ok) { docker compose -f $env:COMPOSE_FILE -f $env:COMPOSE_OVERRIDE ps; docker compose -f $env:COMPOSE_FILE -f $env:COMPOSE_OVERRIDE logs --no-color --tail=100; throw 'Timed out waiting for web healthcheck' }; Write-Host 'Web service is healthy.'"
                         '''
@@ -268,7 +268,7 @@ EOF
                         '''
                     }
                 } else {
-                    echo "Containers left running (${params.CONFIGURATION} / ASPNETCORE_ENVIRONMENT=${env.ASPNETCORE_ENVIRONMENT}). API: http://localhost:8080 | stop: docker compose -f docker-compose.yml down"
+                    echo "Containers left running (${params.CONFIGURATION} / ASPNETCORE_ENVIRONMENT=${env.ASPNETCORE_ENVIRONMENT}). API: http://localhost:8085 | stop: docker compose -f docker-compose.yml down"
                 }
             }
         }

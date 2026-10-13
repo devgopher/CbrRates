@@ -3,7 +3,7 @@
 #   cd <this repo root>
 #   docker compose -f docker-compose.jenkins.yml up -d --build
 #   UI: http://localhost:${JENKINS_HTTP_PORT:-8081}
-#   (default 8081 so app stack can keep host port 8080)
+#   (default 8081 so app stack can keep host port 8085)
 #
 # Preserve an existing jenkins_home volume (see docker volume ls):
 #   $env:JENKINS_HOME_VOLUME = "<volume-name>"
