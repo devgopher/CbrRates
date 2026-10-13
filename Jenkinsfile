@@ -1,10 +1,3 @@
-// CbrRates — Declarative Pipeline (Linux agent)
-// Repo: https://github.com/devgopher/CbrRates
-// Typical setup: Jenkins in Linux Docker on Win11 + Docker Desktop (docker.sock mounted)
-// Tools on agent: git, dotnet SDK 8, docker, docker compose
-//
-// Dev = MSBuild Debug + ASPNETCORE_ENVIRONMENT=Development (no MSBuild "Development" config)
-
 pipeline {
     agent any
 
@@ -23,29 +16,30 @@ pipeline {
         string(
             name: 'GIT_URL',
             defaultValue: 'https://github.com/devgopher/CbrRates.git',
-            description: 'Git repo (used when job is "Pipeline script", not Multibranch / Pipeline from SCM)'
+            description: 'Git repo (only when not Multibranch / Pipeline from SCM)'
         )
         string(
             name: 'GIT_BRANCH',
             defaultValue: 'main',
-            description: 'Branch to build'
+            description: 'Branch to build (non-Multibranch)'
         )
         string(
             name: 'SMOKE_BASE_URL',
             defaultValue: 'http://host.docker.internal:8080',
-            description: 'Base URL for smoke test from Jenkins container (Docker Desktop: host.docker.internal; same network: http://localhost:8080)'
+            description: 'Smoke base URL from Jenkins container (Docker Desktop: host.docker.internal)'
         )
         booleanParam(
             name: 'KEEP_CONTAINERS',
             defaultValue: true,
-            description: 'Leave compose stack running after success. Uncheck to tear down.'
+            description: 'Leave app compose stack running after success. Uncheck to tear down.'
         )
     }
 
     environment {
         COMPOSE_PROJECT_NAME = 'cbrratesservice'
         COMPOSE_FILE = 'docker-compose.yml'
-        COMPOSE_OVERRIDE = 'docker-compose.jenkins.yml'
+        // Runtime override only (do not confuse with docker-compose.jenkins.yml which runs Jenkins itself)
+        COMPOSE_OVERRIDE = 'docker-compose.pipeline-env.yml'
         DOTNET_CLI_TELEMETRY_OPTOUT = '1'
         DOTNET_NOLOGO = '1'
         SOLUTION = 'CbrRatesService.sln'
@@ -53,8 +47,11 @@ pipeline {
 
     stages {
         stage('Checkout') {
+            when {
+                // Multibranch / Pipeline from SCM already fills the workspace
+                expression { return !(env.BRANCH_NAME?.trim()) }
+            }
             steps {
-                // Works for pasted Pipeline script (unlike "checkout scm")
                 checkout([
                     $class: 'GitSCM',
                     branches: [[name: "*/${params.GIT_BRANCH}"]],
@@ -115,6 +112,30 @@ pipeline {
             }
         }
 
+        stage('Docker preflight') {
+            steps {
+                sh '''
+                    set -e
+                    if ! command -v docker >/dev/null 2>&1; then
+                      echo "ERROR: docker CLI not found inside the Jenkins agent/container." >&2
+                      echo "Jenkins runs in Docker but has no Docker CLI / no docker.sock mount (Docker-out-of-Docker)." >&2
+                      echo "" >&2
+                      echo "Fix on Win11 Docker Desktop (from repo root CbrRates):" >&2
+                      echo "  docker compose -f docker-compose.jenkins.yml up -d --build" >&2
+                      echo "Then open http://localhost:8081 and re-run the job." >&2
+                      echo "That compose file mounts /var/run/docker.sock and builds Dockerfile.jenkins (docker + compose + dotnet SDK 8)." >&2
+                      exit 1
+                    fi
+                    if [ ! -S /var/run/docker.sock ] && [ -z "$DOCKER_HOST" ]; then
+                      echo "WARN: /var/run/docker.sock missing and DOCKER_HOST unset — docker commands will likely fail." >&2
+                      echo "Mount the Docker Desktop socket: -v /var/run/docker.sock:/var/run/docker.sock" >&2
+                    fi
+                    docker version
+                    docker compose version
+                '''
+            }
+        }
+
         stage('Docker Build & Run') {
             steps {
                 sh '''
@@ -127,8 +148,6 @@ EOF
                     cat "$COMPOSE_OVERRIDE"
                 '''
                 sh '''
-                    docker version
-                    docker compose version
                     docker compose -f "$COMPOSE_FILE" -f "$COMPOSE_OVERRIDE" down --remove-orphans || true
                     docker compose -f "$COMPOSE_FILE" -f "$COMPOSE_OVERRIDE" up -d --build
                 '''
@@ -171,14 +190,30 @@ EOF
         always {
             script {
                 if (!params.KEEP_CONTAINERS) {
-                    sh 'docker compose -f "$COMPOSE_FILE" -f "$COMPOSE_OVERRIDE" down --remove-orphans || docker compose -f "$COMPOSE_FILE" down --remove-orphans || true'
+                    sh '''
+                        if command -v docker >/dev/null 2>&1; then
+                          docker compose -f "$COMPOSE_FILE" -f "$COMPOSE_OVERRIDE" down --remove-orphans \
+                            || docker compose -f "$COMPOSE_FILE" down --remove-orphans \
+                            || true
+                        else
+                          echo "Skip compose down: docker CLI not available"
+                        fi
+                    '''
                 } else {
-                    echo "Containers left running (${params.CONFIGURATION} / ASPNETCORE_ENVIRONMENT=${env.ASPNETCORE_ENVIRONMENT}). API on host: http://localhost:8080 | stop: docker compose down"
+                    echo "Containers left running (${params.CONFIGURATION} / ASPNETCORE_ENVIRONMENT=${env.ASPNETCORE_ENVIRONMENT}). Host API: http://localhost:8080 | stop: docker compose down"
                 }
             }
         }
         failure {
-            sh 'docker compose -f "$COMPOSE_FILE" -f "$COMPOSE_OVERRIDE" logs --no-color --tail=200 || docker compose -f "$COMPOSE_FILE" logs --no-color --tail=200 || true'
+            sh '''
+                if command -v docker >/dev/null 2>&1; then
+                  docker compose -f "$COMPOSE_FILE" -f "$COMPOSE_OVERRIDE" logs --no-color --tail=200 \
+                    || docker compose -f "$COMPOSE_FILE" logs --no-color --tail=200 \
+                    || true
+                else
+                  echo "Skip compose logs: docker CLI not available (see Docker preflight / docker-compose.jenkins.yml)"
+                fi
+            '''
         }
         cleanup {
             sh 'rm -f "$COMPOSE_OVERRIDE" || true'

@@ -1,0 +1,32 @@
+# Local Jenkins (Linux container) on Win11 Docker Desktop with Docker-out-of-Docker.
+# App stack still uses docker-compose.yml on host port 8080 — Jenkins UI is on 8081.
+#
+# Usage (from this repo root, PowerShell or bash):
+#   docker compose -f docker-compose.jenkins.yml up -d --build
+#   open http://localhost:8081
+#
+# Requires Docker Desktop → Settings → General: "Expose daemon on tcp://localhost:2375" is NOT required;
+# mounting /var/run/docker.sock is enough for Linux containers.
+
+services:
+  jenkins:
+    build:
+      context: .
+      dockerfile: Dockerfile.jenkins
+    container_name: cbrrates-jenkins
+    ports:
+      # Avoid clash with app web:8080 from docker-compose.yml
+      - "8081:8080"
+      - "50000:50000"
+    environment:
+      DOCKER_HOST: unix:///var/run/docker.sock
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      # Docker Desktop (Linux engine): socket inside Linux VM/containers
+      - /var/run/docker.sock:/var/run/docker.sock
+    # Local Dev: root can talk to the mounted sock without GID fights
+    user: root
+    restart: unless-stopped
+
+volumes:
+  jenkins_home:

@@ -1,0 +1,35 @@
+# Jenkins controller/agent image for local Win11 Docker Desktop:
+# - Jenkins LTS
+# - Docker CLI + Compose plugin (Docker-out-of-Docker via mounted docker.sock)
+# - .NET SDK 8 (restore/build/test on the same agent)
+#
+# Build/run: see docker-compose.jenkins.yml
+
+FROM docker:27-cli AS dockercli
+
+FROM jenkins/jenkins:lts-jdk17
+
+USER root
+
+# Docker CLI + compose plugin from official CLI image
+COPY --from=dockercli /usr/local/bin/docker /usr/local/bin/docker
+COPY --from=dockercli /usr/local/libexec/docker/cli-plugins /usr/local/libexec/docker/cli-plugins
+
+# curl (smoke tests) + .NET SDK 8
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates curl wget apt-transport-https \
+    && wget -q https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb -O /tmp/packages-microsoft-prod.deb \
+    && dpkg -i /tmp/packages-microsoft-prod.deb \
+    && rm /tmp/packages-microsoft-prod.deb \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends dotnet-sdk-8.0 \
+    && rm -rf /var/lib/apt/lists/* \
+    && docker --version \
+    && docker compose version \
+    && dotnet --list-sdks
+
+# Docker Desktop sock is often root-owned; local Dev convenience.
+# Prefer mounting sock + this root user for DooD; harden for real CI.
+USER root
+
+EXPOSE 8080 50000
